@@ -1,6 +1,6 @@
-# Text-Dependent Speaker Verification Prototype
+# Text-Dependent Speaker Verification 
 
-A classical signal-processing based speaker verification system using MFCC features and Dynamic Time Warping (DTW), designed for a bachelor's thesis. This implementation prioritizes clarity and modularity over optimization.
+A classical signal-processing based speaker verification system using MFCC features and Dynamic Time Warping (DTW). This implementation prioritizes clarity and modularity over optimization.
 
 ## Overview
 
