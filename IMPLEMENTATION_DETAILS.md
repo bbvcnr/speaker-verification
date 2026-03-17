@@ -1,7 +1,7 @@
 # Complete Technical Implementation Guide
-## Speaker Verification System - Excruciating Detail
+## Speaker Verification System - Detailed Version
 
-**Author:** Research Project  
+**Type:** Research Project  
 **Date:** March 2026  
 **Python Version:** 3.8+  
 **Purpose:** This document provides comprehensive implementation details for every component of the text-dependent speaker verification system. It is intended for engineers who need to understand, maintain, extend, or troubleshoot the system.
