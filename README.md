@@ -1,265 +1,234 @@
 # Text-Dependent Speaker Verification System
 
-A classical signal-processing based speaker verification system optimized for text-dependent (passphrase-based) authentication. Designed for embedded deployment and thesis research on low-complexity speaker authentication.
+A classical DSP-based speaker verification system optimized for text-dependent audio. The project separates reusable audio and verification logic into `core/` and dataset/evaluation orchestration into `scripts/`.
 
 ## Overview
 
-This project implements a **text-dependent speaker verification pipeline** using:
-- **MFCC features** with delta and delta-delta coefficients (39 total dimensions)
-- **Cepstral Mean and Variance Normalization (CMVN)** for acoustic robustness
-- **Dynamic Time Warping (DTW) with Sakoe-Chiba band constraint** for efficient similarity scoring
-- **Threshold-based verification** with ROC curve and EER analysis
+This repository implements a **text-dependent speaker verification pipeline** using:
+- **MFCC features** with delta and delta-delta coefficients
+- **Cepstral Mean and Variance Normalization (CMVN)**
+- **Dynamic Time Warping (DTW)** for time-sequence similarity
+- **Threshold-based verification** with ROC curves, EER, TAR, FAR, and advanced diagnostics
 
-**Use Cases:** Voice banking, device unlock, phone authentication, embedded voice security
+## Supported datasets
 
-## Datasets
+The system supports three datasets configured in `config/dataset_config.json`:
 
-### Primary: Google Speech Commands
-- Fixed passphrase (e.g., "yes", "no", "up", "down")
-- 20+ speakers with 5+ utterances each
-- ~1 second audio samples, 16 kHz sample rate
-- Automatically downloaded (~300MB)
+- `custom_dataset`: open custom dataset under `data/custom_dataset/`
+- `heysnips`: Hey Snips dataset under `data/heysnips/`
+- `speech_commands_subset`: Speech Commands subset under `data/speech_commands_subset/`
 
-### Custom Passphrase (Future)
-- User-recorded utterances
-- Variable passphrase length
-- Same preprocessing and evaluation pipeline
+## Project structure
 
-## Architecture
+- `core/`: reusable audio preprocessing and verification modules
+- `scripts/dataset/`: dataset preparation and template-building scripts
+- `scripts/evaluation/`: evaluation, threshold tuning, and metrics scripts
+- `scripts/tools/`: auxiliary utilities such as recording helpers
+- `evaluation/`: metric definitions and plotting helpers
+- `config/`: dataset configuration and threshold files
+- `evaluation_results/`: generated evaluation outputs
 
-```
-Audio Input
-    ↓
-Preprocessing (normalization, silence trimming)
-    ↓
-MFCC Extraction (13 coefficients)
-    ↓
-Delta + Delta-Delta (velocity and acceleration)
-    ↓
-Cepstral Mean and Variance Normalization (CMVN)
-    ↓
-Template Generation (multi-utterance averaging)
-    ↓
-DTW Similarity (Sakoe-Chiba band constraint)
-    ↓
-Threshold Decision
-    ↓
-ACCEPT / REJECT
-```
-
-## Project Structure
+## Layout
 
 ```
 speaker-verification/
-├── Core Processing Pipeline
-│   ├── audio_utils.py              # Audio I/O, normalization, silence trimming
-│   ├── features.py                 # MFCC extraction with delta & CMVN
-│   ├── dtw.py                      # DTW with Sakoe-Chiba band constraint
-│   └── verification.py             # Template creation, verification logic
-│
-├── Evaluation & Datasets
-│   ├── run_text_dependent_evaluation.py    # Main evaluation pipeline
-│   ├── data_handlers.py             # Dataset management
+├── core/
+│   ├── __init__.py
+│   ├── audio_utils.py
+│   ├── dtw.py
+│   ├── features.py
+│   └── verification.py
+├── scripts/
+│   ├── dataset/
+│   │   ├── build_templates.py
+│   │   ├── extract_speech_commands_subset.py
+│   │   ├── validate_dataset.py
 │   ├── evaluation/
-│   │   ├── evaluation_scores.py    # Score generation
-│   │   ├── metrics.py              # FAR, FRR, ROC, EER
-│   │   └── visualizations.py       # Plotting utilities
-│   └── evaluation_results/
-│       └── text_dependent/         # Results directory
-│
-└── Documentation
-    ├── README.md (this file)
-    └── TEXT_DEPENDENT_GUIDE.md
+│   │   ├── advanced_metrics.py
+│   │   ├── evaluate_dataset.py
+│   │   ├── test_end_to_end.py
+│   │   ├── tune_threshold.py
+│   ├── tools/
+│   │   └── recording.py
+│   └── experiments/
+│       └── text_dependency_test.py
+├── evaluation/
+│   ├── metrics.py
+│   └── visualizations.py
+├── config/
+│   ├── dataset_config.json
+│   ├── custom_threshold.json
+│   └── speech_commands_subset_threshold.json
+├── evaluation_results/
+│   ├── custom_dataset/
+│   ├── heysnips/
+│   └── speech_commands_subset/
+└── README.md
 ```
 
 ## Installation
 
 ### Requirements
 - Python 3.8+
-- librosa 0.9.2+, numpy, scipy, matplotlib, seaborn, pandas, soundfile
+- `librosa`, `numpy`, `scipy`, `matplotlib`, `seaborn`, `pandas`, `soundfile`
 
 ### Setup
 
 ```bash
-# Create virtual environment
 python -m venv venv
-
-# Activate (Windows)
-venv\Scripts\activate
-
-# Install dependencies
+venv\Scripts\Activate.ps1
 pip install librosa numpy scipy matplotlib seaborn pandas soundfile
-
-# Verify
-python -c "import librosa; print('Ready')"
 ```
 
-## Quick Start
+### Quick Start
 
-### Run Text-Dependent Evaluation
+Validate and evaluate the custom dataset:
 
 ```bash
-python run_text_dependent_evaluation.py
+python scripts/dataset/validate_dataset.py --dataset custom_dataset
+python scripts/dataset/build_templates.py --dataset custom_dataset  
+python scripts/evaluation/tune_threshold.py --dataset custom_dataset
+python scripts/evaluation/test_end_to_end.py --dataset custom_dataset
+python scripts/evaluation/advanced_metrics.py --dataset custom_dataset
 ```
 
-**Runtime:** ~2-5 minutes (after first-time dataset download of ~300MB on first run)
-
-**Output:** `evaluation_results/text_dependent/`
-- `evaluation_scores.csv` - All trial scores
-- `score_histograms.png` - Score distributions
-- `roc_curve.png` - ROC curve with EER
-- `threshold_analysis.png` - FAR/FRR analysis
-- `metrics.json` - Structured metrics
-- `evaluation_summary.txt` - Summary report
-
-### Use Different Keyword
+Or run the complete unified pipeline:
 
 ```bash
-python -c "from run_text_dependent_evaluation import run_text_dependent_evaluation; run_text_dependent_evaluation(keyword='no', n_speakers=20)"
+python scripts/evaluation/evaluate_dataset.py --dataset custom_dataset
 ```
 
-Available keywords: yes, no, up, down, left, right, go, stop, on, off, learn, bed, bird, cat, dog, ...
+## Generic dataset workflow
 
-## Performance Metrics
+All dataset scripts support the `--dataset` argument and read parameters from `config/dataset_config.json`.
 
-### Text-Dependent Verification (Google Speech Commands "yes" keyword)
+### Validate dataset structure
 
-| Metric | Value |
-|--------|-------|
-| **EER** | 23.02% |
-| Optimal Threshold | 3.28 |
-| Genuine Score Mean | 2.73 |
-| Impostor Score Mean | 3.73 |
-| Score Separation | 1.43 (moderate) |
-| Inference Time | ~50-100ms per verification |
-| Valid Trials | 42 genuine + 90 impostor |
-
-**Interpretation:**
-- ✓ Good score separation (clear bimodal distribution)
-- ✓ Reasonable EER for classical MFCC+DTW methods
-- ✓ 2.0x better performance than text-independent baseline (45.21% EER)
-- ✓ Suitable for embedded deployment
-
-## Module Documentation
-
-### `features.py` - MFCC + CMVN
-
-```python
-extract_mfcc(audio, sr, n_mfcc=13, include_deltas=True, apply_cmvn=True)
-    Extract MFCC features with optional delta coefficients and CMVN normalization
-    Returns: (39, time_frames) by default
-    
-apply_cmvn_normalization(features, epsilon=1e-8)
-    Cepstral Mean and Variance Normalization
-    Normalizes each coefficient to zero mean, unit variance
+```bash
+python scripts/dataset/validate_dataset.py --dataset custom_dataset
 ```
 
-**What is CMVN?**
-- Normalizes each MFCC coefficient across time frames
-- Reduces speaker-independent acoustic variation
-- Formula: `(feature - mean) / std`
-- Improves robustness to channel and environmental differences
+### Build enrollment templates
 
-### `dtw.py` - DTW with Sakoe-Chiba Band
-
-```python
-dtw_distance(seq1, seq2, normalize=False, use_band=True, band_width=None)
-    Dynamic Time Warping distance with optional Sakoe-Chiba band constraint
-    
-    use_band=True: Limit warping path to diagonal band (~15% of sequence length)
-    normalize=True: Divide by path length for scale-independent comparison
-    Returns: DTW distance (lower = more similar)
+```bash
+python scripts/dataset/build_templates.py --dataset custom_dataset
 ```
 
-**Sakoe-Chiba Band Constraint:**
-- Limits warping flexibility to a band around the main diagonal
-- Typical band width: 10-15% of sequence length
-- Speedup: 6-7x faster with negligible accuracy loss
-- Suitable for speaker verification (sequences similar length)
+### Tune dataset threshold
 
-### `verification.py` - Speaker Verification
-
-```python
-create_template(audio_paths, sr=16000)
-    Create speaker template by averaging multiple MFCC utterances
-    Accepts: single path or list of paths
-    Returns: averaged MFCC features
-    
-verify_speaker(template_mfcc, test_audio_path, sr=16000, 
-                threshold=68.64, normalize_dtw=True)
-    Verify test utterance against template
-    Returns: (distance, decision) where decision is ACCEPT/REJECT
+```bash
+python scripts/evaluation/tune_threshold.py --dataset custom_dataset
 ```
 
-### `audio_utils.py` - Preprocessing
+### Run end-to-end verification
 
-```python
-load_audio(file_path, sr=16000)
-normalize_audio(audio)
-trim_silence(audio, sr, top_db=20)
+```bash
+python scripts/evaluation/test_end_to_end.py --dataset custom_dataset
 ```
 
-## Implementation Details
+### Generate advanced metrics
 
-### Cepstral Mean and Variance Normalization (CMVN)
-
-```python
-# Each MFCC coefficient is normalized across time frames
-mean_per_coeff = np.mean(mfcc, axis=1, keepdims=True)  # shape: (39, 1)
-std_per_coeff = np.std(mfcc, axis=1, keepdims=True)   # shape: (39, 1)
-normalized = (mfcc - mean_per_coeff) / (std_per_coeff + epsilon)
+```bash
+python scripts/evaluation/advanced_metrics.py --dataset custom_dataset
 ```
 
-**Benefits:**
-- Reduces environmental variation (different microphones, rooms)
-- Improves speaker-independent feature robustness
-- Standard preprocessing in speaker recognition systems
+For the speech commands subset, this also generates the speaker distance matrix and report-ready confusion matrix:
 
-### Sakoe-Chiba Band Constraint
-
-Band width = ~15% of longer sequence length
-
-```
-Example with sequences of length 100 and 110, band_width = 17:
-Allowed warping path stays within ±17 cells of diagonal
+```bash
+python scripts/evaluation/advanced_metrics.py --dataset speech_commands_subset
 ```
 
-Diagonal Band Visualization:
-```
-j (columns)
-1   20  40  60  80 100 110
-1   ███░░░░░░░░░░░░░░░░░░░
-20  ████████░░░░░░░░░░░░░░
-40  ░███████████░░░░░░░░░░
-60  ░░░███████████░░░░░░░░
-80  ░░░░░███████████░░░░░░
-i 100 ░░░░░░░███████████░░░░
-(length) 120 ░░░░░░░░░███████████░░░░
+### Run the full unified pipeline
+
+```bash
+python scripts/evaluation/evaluate_dataset.py --dataset custom_dataset
 ```
 
-**Computational Speedup:**
-- Without band: O(n*m) distance computations
-- With band: O(n*w) distance computations
-- Factor: 6-7x faster for speaker verification tasks
+Optional skips:
 
-## Thesis Contribution
+```bash
+python scripts/evaluation/evaluate_dataset.py --dataset custom_dataset --skip-build --skip-tune
+```
 
-This work demonstrates:
+## Datasets
 
-1. **Classical approaches remain competitive** for text-dependent tasks
-2. **CMVN normalization** improves acoustic robustness without deep learning
-3. **Sakoe-Chiba band constraint** enables efficient DTW computation
-4. **Text-dependent verification** achieves 23.02% EER, significantly better than text-independent (45%+ EER)
+### `custom_dataset`
+- Data path: `data/custom_dataset/`
+- Template dir: `templates/custom_dataset/`
+- Threshold config: `config/custom_threshold.json`
 
-**Key Insight:** For constrained verbal passwords, classical signal processing with proper architectures achieves strong performance for embedded systems.
+### `heysnips`
+- Data path: `data/heysnips/`
+- Template dir: `templates/heysnips/`
+- Threshold config: `config/heysnips_threshold.json`
 
-## References
+### `speech_commands_subset`
+- Data path: `data/speech_commands_subset/`
+- Template dir: `templates/speech_commands_subset/`
+- Threshold config: `config/speech_commands_subset_threshold.json`
+- Extracted with `scripts/dataset/extract_speech_commands_subset.py`
 
-- Sakoe, H., & Chiba, S. (1978). Dynamic Programming Algorithm Optimization for Spoken Word Recognition
-- Davis, S., & Mermelstein, P. (1980). Comparison of Parametric Representations for Monosyllabic Word Recognition in Continually Spoken Sentences
-- Reynolds, D. A. (2002). An Overview of Automatic Speaker Recognition Technology
-- Google Speech Commands Dataset: https://ai.googleblog.com/2017/08/launching-speech-commands-dataset.html
+## Results comparison
 
----
+| Dataset | Speakers | EER | TAR | FAR | Fisher DR | Bhattacharyya |
+|--------|----------|-----|-----|-----|-----------|---------------|
+| custom_dataset | 8 | 17.0% | 87.8% | 21.4% | 1.93 | 0.49 |
+| Hey Snips | 30 | 12.2% | 85.9% | 5.7% | 2.35 | 0.61 |
+| Speech Commands subset | 35 | 14.8% | 85.2% | 14.2% | 1.82 | 0.47 |
 
-**For detailed usage, see TEXT_DEPENDENT_GUIDE.md**
+### Performance Analysis
+
+- **Custom Dataset**: Smallest dataset (8 speakers) with controlled recording conditions. Demonstrates baseline performance on user-recorded audio with consistent microphone/environment.
+
+- **Hey Snips**: Crowdsourced dataset (30 speakers) with moderate variation in recording quality and speaker demographics. Better separation (lower Fisher DR variation) suggests more diverse speaker characteristics.
+
+- **Speech Commands Subset**: Largest dataset (35 speakers) with most variation in recording conditions and speaker types. Slightly higher EER reflects real-world deployment challenges while maintaining acceptable performance.
+
+### Key Insights
+
+1. **Text-Dependent Constraint Works**: All datasets show EER 12-17%, demonstrating fixed-passphrase verification is feasible with classical methods
+2. **Scalability**: Performance remains consistent across 8-35 speakers, indicating robust generalization  
+3. **Dataset Impact**: Quality and diversity of training data affects performance (custom < Hey Snips ≈ Speech Commands)
+4. **Fisher Discriminant Ratio**: Ranges 1.8-2.4σ, showing good class separation and threshold stability
+
+## Notes
+
+- Use `--dataset` consistently for all generic dataset scripts.
+- `dataset_config.json` centralizes dataset paths, template directories, and split settings.
+- `scripts/evaluation/evaluate_dataset.py` runs the full pipeline for any configured dataset.
+
+## Core modules
+
+### `core/audio_utils.py`
+- `load_audio(file_path, sr=16000)`
+- `normalize_audio(audio)`
+- `trim_silence(audio, sr, top_db=20)`
+
+### `core/features.py`
+- `extract_mfcc(audio, sr, n_mfcc=13, include_deltas=True, apply_cmvn=True)`
+
+### `core/dtw.py`
+- `dtw_distance(seq1, seq2, normalize=False, use_band=True, band_width=None)` - DTW distance with Sakoe-Chiba band constraint
+
+### `core/verification.py`
+- `create_template(audio_paths, sr=16000)` - Create speaker template from multiple utterances
+- `verify_speaker(template_mfcc, test_audio_path, sr=16000, threshold=1000, normalize_dtw=False)` - Verify speaker identity
+
+## Literature & Technical Background
+
+The system implements well-established techniques in speaker verification:
+
+- **MFCC Features** (Davis & Mermelstein, 1980): Standard in speech processing
+- **Dynamic Time Warping** (Sakoe & Chiba, 1978): Robust sequence comparison  
+- **Cepstral Mean & Variance Normalization**: Channel robustness technique
+- **Text-Dependent Verification**: Improved performance through vocabulary constraint
+
+## Project Context
+
+This is an implementation of a classical signal-processing approach to speaker verification, suitable for:
+- Educational purposes (understanding DSP-based biometrics)
+- Embedded systems (CPU-only, no GPU required)  
+- Baseline comparisons (against deep learning approaches)
+- Controlled experimental environments
+
+The system deliberately avoids deep learning to maintain interpretability and demonstrate that classical approaches remain competitive for constrained problems like text-dependent verification.

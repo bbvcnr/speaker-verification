@@ -36,19 +36,27 @@ env/
 Thumbs.db
 
 # Datasets (too large for version control)
-data/speech_commands/
 data/
-/data
+*.tar
+*.tar.gz
+*.zip
 
-# Audio files (generally exclude to save space)
+# Audio files (private recordings and generated responses)
 *.wav
 *.flac
 *.mp3
 *.ogg
+audio_responses/
+
+# Speaker embedding templates (private voice data)
+templates/
+*.npy
+
+# Generated figures (reproducible from code)
+figures/
 
 # Generated evaluation results (regenerate locally)
 evaluation_results/
-/evaluation_results
 
 # Temporary/Log files
 *.tmp
@@ -60,3 +68,6 @@ evaluation_results/
 # OS-specific
 .DS_Store
 Thumbs.db
+
+# Claude Code internal files
+.claude/

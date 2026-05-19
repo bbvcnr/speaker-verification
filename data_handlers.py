@@ -6,10 +6,12 @@ Supports:
 """
 
 import os
+import json
 import urllib.request
 import tarfile
 import glob
 import random
+from pathlib import Path
 from collections import defaultdict
 
 
@@ -139,31 +141,40 @@ class GoogleSpeechCommandsHandler:
         return selected_speakers
     
     @staticmethod
-    def create_text_dependent_trials(selected_speakers, template_size=3):
+    def create_text_dependent_trials(
+        selected_speakers,
+        template_size=3,
+        impostor_speakers_per_test=5,
+        random_seed=42,
+    ):
         """
         Create templates and test trials for text-dependent verification.
         
         Args:
             selected_speakers: dict mapping speaker_id -> list of file paths
             template_size: number of recordings to use for template
+            impostor_speakers_per_test: maximum impostor speakers sampled per test trial
+            random_seed: seed used for deterministic trial generation
             
         Returns:
             dict with:
                 - 'templates': dict mapping speaker_id -> list of template files
                 - 'test_sets': dict mapping speaker_id -> list of test files
-                - 'genuine_pairs': list of (template_files, test_file, label=True)
-                - 'impostor_pairs': list of (template_files, test_file, label=False)
+                - 'genuine_pairs': list of trial dicts for genuine tests
+                - 'impostor_pairs': list of trial dicts for impostor tests
         """
+        rng = random.Random(random_seed)
+
         templates = {}
         test_sets = {}
         
         # Split each speaker's recordings
         for speaker_id, recordings in selected_speakers.items():
-            random.shuffle(recordings)
+            rng.shuffle(recordings)
             templates[speaker_id] = recordings[:template_size]
             test_sets[speaker_id] = recordings[template_size:]
         
-        # Generate genuine pairs
+        # Generate genuine test trials
         genuine_pairs = []
         for speaker_id in selected_speakers.keys():
             for test_file in test_sets[speaker_id]:
@@ -174,30 +185,29 @@ class GoogleSpeechCommandsHandler:
                     'label': True
                 })
         
-        # Generate impostor pairs (random sampling)
+        # Generate impostor test trials using sampled impostor speakers
         impostor_pairs = []
         speaker_ids = list(selected_speakers.keys())
         
         for template_speaker in speaker_ids:
-            # Sample 5 other speakers for impostor trials
-            n_impostors = min(5, len(speaker_ids) - 1)
-            impostor_speakers = random.sample(
-                [s for s in speaker_ids if s != template_speaker],
-                n_impostors
-            )
+            other_speakers = [s for s in speaker_ids if s != template_speaker]
+            n_impostors = min(impostor_speakers_per_test, len(other_speakers))
+            impostor_speakers = rng.sample(other_speakers, n_impostors)
             
             for impostor_speaker in impostor_speakers:
-                for test_file in test_sets[impostor_speaker]:
-                    impostor_pairs.append({
-                        'template_speaker': template_speaker,
-                        'test_speaker': impostor_speaker,
-                        'test_file': test_file,
-                        'label': False
-                    })
-                    break  # Only take first test file per impostor speaker
-        
-        print(f"Generated {len(genuine_pairs)} genuine pairs")
-        print(f"Generated {len(impostor_pairs)} impostor pairs")
+                test_files = test_sets.get(impostor_speaker, [])
+                if not test_files:
+                    continue
+                test_file = rng.choice(test_files)
+                impostor_pairs.append({
+                    'template_speaker': template_speaker,
+                    'test_speaker': impostor_speaker,
+                    'test_file': test_file,
+                    'label': False
+                })
+
+        print(f"Generated {len(genuine_pairs)} genuine trials")
+        print(f"Generated {len(impostor_pairs)} impostor trials")
         
         return {
             'templates': templates,
@@ -212,3 +222,142 @@ class GoogleSpeechCommandsHandler:
         downloaded = block_num * block_size
         percent = min(downloaded * 100 // total_size, 100)
         print(f"\rDownloading: {percent}%", end='', flush=True)
+
+
+def load_dataset_config(dataset_name):
+    config_path = Path(__file__).resolve().parent / 'config' / 'dataset_config.json'
+    if not config_path.exists():
+        return {}
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+    return config.get(dataset_name, {})
+
+
+class CustomDatasetHandler:
+    """Handler for custom speaker verification datasets."""
+
+    @staticmethod
+    def load_speaker_recordings(dataset_path):
+        recordings = {}
+        if not os.path.exists(dataset_path):
+            return recordings
+
+        for speaker in sorted(os.listdir(dataset_path)):
+            speaker_path = os.path.join(dataset_path, speaker)
+            if not os.path.isdir(speaker_path):
+                continue
+            files = sorted(glob.glob(os.path.join(speaker_path, '*.wav')))
+            if files:
+                recordings[speaker] = files
+        return recordings
+
+    @staticmethod
+    def select_speakers(speaker_recordings, n_speakers=None, min_recordings=None, random_seed=42):
+        selected = {
+            speaker: files
+            for speaker, files in speaker_recordings.items()
+            if min_recordings is None or len(files) >= min_recordings
+        }
+
+        speaker_ids = sorted(selected.keys())
+        if n_speakers is not None and len(speaker_ids) > n_speakers:
+            rng = random.Random(random_seed)
+            speaker_ids = rng.sample(speaker_ids, n_speakers)
+
+        return {speaker: selected[speaker] for speaker in speaker_ids}
+
+    @staticmethod
+    def split_enrollment_test(speaker_recordings, enrollment_count=3, test_count=2, random_seed=42):
+        rng = random.Random(random_seed)
+        templates = {}
+        test_sets = {}
+
+        for speaker, files in speaker_recordings.items():
+            if len(files) < enrollment_count + test_count:
+                continue
+
+            files = list(files)
+            rng.shuffle(files)
+            templates[speaker] = files[:enrollment_count]
+            test_sets[speaker] = files[enrollment_count:enrollment_count + test_count]
+
+        return templates, test_sets
+
+    @staticmethod
+    def create_verification_trials(templates, test_sets, impostor_speakers_per_test=5, random_seed=42):
+        rng = random.Random(random_seed)
+        genuine_trials = []
+        impostor_trials = []
+        speaker_ids = list(templates.keys())
+
+        for template_speaker in speaker_ids:
+            for test_file in test_sets.get(template_speaker, []):
+                genuine_trials.append({
+                    'template_speaker': template_speaker,
+                    'test_speaker': template_speaker,
+                    'test_file': test_file,
+                    'label': True
+                })
+
+                other_speakers = [s for s in speaker_ids if s != template_speaker]
+                n_impostors = min(impostor_speakers_per_test, len(other_speakers))
+                sampled_impostors = rng.sample(other_speakers, n_impostors)
+
+                for impostor_speaker in sampled_impostors:
+                    impostor_tests = test_sets.get(impostor_speaker, [])
+                    if not impostor_tests:
+                        continue
+                    impostor_file = rng.choice(impostor_tests)
+                    impostor_trials.append({
+                        'template_speaker': template_speaker,
+                        'test_speaker': impostor_speaker,
+                        'test_file': impostor_file,
+                        'label': False
+                    })
+
+        return genuine_trials, impostor_trials
+
+
+class HeySNIPSHandler:
+    """Handler for HeySNIPS speaker verification datasets."""
+
+    @staticmethod
+    def load_speaker_recordings(dataset_path):
+        return CustomDatasetHandler.load_speaker_recordings(dataset_path)
+
+    @staticmethod
+    def select_speakers(speaker_recordings, n_speakers=None, min_recordings=None, random_seed=42):
+        return CustomDatasetHandler.select_speakers(
+            speaker_recordings,
+            n_speakers=n_speakers,
+            min_recordings=min_recordings,
+            random_seed=random_seed,
+        )
+
+    @staticmethod
+    def split_enrollment_test(speaker_recordings, enrollment_count=3, test_count=2, random_seed=42):
+        return CustomDatasetHandler.split_enrollment_test(
+            speaker_recordings,
+            enrollment_count=enrollment_count,
+            test_count=test_count,
+            random_seed=random_seed,
+        )
+
+    @staticmethod
+    def create_verification_trials(templates, test_sets, impostor_speakers_per_test=5, random_seed=42):
+        return CustomDatasetHandler.create_verification_trials(
+            templates,
+            test_sets,
+            impostor_speakers_per_test=impostor_speakers_per_test,
+            random_seed=random_seed,
+        )
+
+
+def get_dataset_handler(dataset_name):
+    if dataset_name == 'custom_dataset':
+        return CustomDatasetHandler
+    if dataset_name == 'heysnips':
+        return HeySNIPSHandler
+    if dataset_name == 'speech_commands':
+        return GoogleSpeechCommandsHandler
+    raise ValueError(f"Unknown dataset handler: {dataset_name}")

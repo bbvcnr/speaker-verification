@@ -68,3 +68,58 @@ def dtw_distance(seq1, seq2, normalize=False, use_band=True, band_width=None):
         distance /= path_length
 
     return distance
+
+
+def dtw_cost_matrix(seq1, seq2, normalize=False, use_band=True, band_width=None):
+    """
+    Compute the DTW accumulated cost matrix and optimal warping path.
+
+    Returns:
+        cost_matrix: accumulated cost values for each aligned frame pair
+        path: list of (i, j) coordinate pairs for the optimal warping path
+    """
+    seq1 = np.asarray(seq1)
+    seq2 = np.asarray(seq2)
+    n, m = len(seq1), len(seq2)
+    if use_band and min(n, m) < 20:
+        use_band = False
+    if use_band and band_width is None:
+        band_width = max(2, int(0.15 * max(n, m)))
+
+    dtw_matrix = np.full((n + 1, m + 1), np.inf)
+    dtw_matrix[0, 0] = 0
+
+    for i in range(1, n + 1):
+        if use_band:
+            j_min = max(1, i - band_width)
+            j_max = min(m + 1, i + band_width + 1)
+        else:
+            j_min = 1
+            j_max = m + 1
+
+        for j in range(j_min, j_max):
+            if dtw_matrix[i-1, j] == np.inf and dtw_matrix[i, j-1] == np.inf and dtw_matrix[i-1, j-1] == np.inf:
+                continue
+            cost = np.linalg.norm(seq1[i-1] - seq2[j-1])
+            dtw_matrix[i, j] = cost + min(dtw_matrix[i-1, j], dtw_matrix[i, j-1], dtw_matrix[i-1, j-1])
+
+    cost_matrix = dtw_matrix[1:, 1:]
+    i, j = n, m
+    path = []
+    while i > 0 or j > 0:
+        path.append((i-1, j-1))
+        candidates = []
+        if i > 0 and j > 0:
+            candidates.append((dtw_matrix[i-1, j-1], i-1, j-1))
+        if i > 0:
+            candidates.append((dtw_matrix[i-1, j], i-1, j))
+        if j > 0:
+            candidates.append((dtw_matrix[i, j-1], i, j-1))
+        _, i, j = min(candidates, key=lambda x: x[0])
+    path.reverse()
+
+    if normalize:
+        path_length = n + m
+        cost_matrix = cost_matrix / path_length
+
+    return cost_matrix, path

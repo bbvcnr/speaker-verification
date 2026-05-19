@@ -1,0 +1,43 @@
+{
+  "custom_dataset": {
+    "data_path": "data/custom_dataset",
+    "results_path": "evaluation_results/custom_dataset",
+    "templates_dir": "templates/custom_dataset",
+    "threshold_config": "config/custom_threshold.json",
+    "enrollment_count": 3,
+    "test_count": 2,
+    "impostor_speakers_per_test": 5,
+    "random_seed": 42
+  },
+  "heysnips": {
+    "data_path": "data/heysnips",
+    "results_path": "evaluation_results/heysnips",
+    "templates_dir": "templates/heysnips",
+    "threshold_config": "config/heysnips_threshold.json",
+    "enrollment_count": 3,
+    "test_count": 3,
+    "impostor_speakers_per_test": 5,
+    "random_seed": 42
+  },
+  "speech_commands": {
+    "data_path": "data/speech_commands",
+    "results_path": "evaluation_results/speech_commands",
+    "templates_dir": "templates/speech_commands",
+    "threshold_config": "config/speech_commands_threshold.json",
+    "keyword": "yes",
+    "enrollment_count": 3,
+    "test_count": 2,
+    "impostor_speakers_per_test": 5,
+    "random_seed": 42
+  },
+  "speech_commands_subset": {
+    "data_path": "data/speech_commands_subset",
+    "results_path": "evaluation_results/speech_commands_subset",
+    "templates_dir": "templates/speech_commands_subset",
+    "threshold_config": "config/speech_commands_subset_threshold.json",
+    "enrollment_count": 3,
+    "test_count": 2,
+    "impostor_speakers_per_test": 10,
+    "random_seed": 42
+  }
+}

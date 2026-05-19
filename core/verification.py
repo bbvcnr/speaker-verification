@@ -1,7 +1,7 @@
 import numpy as np
-from audio_utils import load_audio, normalize_audio, trim_silence
-from features import extract_mfcc
-from dtw import dtw_distance
+from core.audio_utils import load_audio, normalize_audio, trim_silence
+from core.features import extract_mfcc
+from core.dtw import dtw_distance
 
 def create_template(audio_paths, sr=16000):
     """

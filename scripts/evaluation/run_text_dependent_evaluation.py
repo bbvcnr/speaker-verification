@@ -19,19 +19,34 @@ Output:
 """
 
 import os
+import sys
 import json
 import random
 import time
+from pathlib import Path
+
+# Add project root to path so we can import core and evaluation modules
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from data_handlers import GoogleSpeechCommandsHandler
-from audio_utils import load_audio, normalize_audio, trim_silence
-from features import extract_mfcc
-from verification import create_template, verify_speaker
+from core.audio_utils import load_audio, normalize_audio, trim_silence
+from core.features import extract_mfcc
+from core.verification import create_template, verify_speaker
 from evaluation.visualizations import plot_score_histograms, plot_roc_curve, plot_threshold_analysis
 from evaluation.metrics import compute_roc_curve, compute_eer
+
+
+def load_dataset_config(dataset_name):
+    config_path = Path(__file__).resolve().parent.parent.parent / 'config' / 'dataset_config.json'
+    if not config_path.exists():
+        return {}
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+    return config.get(dataset_name, {})
 
 
 def run_text_dependent_evaluation(keyword="yes",
@@ -49,6 +64,11 @@ def run_text_dependent_evaluation(keyword="yes",
     """
     os.makedirs(output_dir, exist_ok=True)
     
+    config = load_dataset_config('speech_commands')
+    keyword = config.get('keyword', keyword)
+    random_seed = config.get('random_seed', 42)
+    impostor_speakers_per_test = config.get('impostor_speakers_per_test', 5)
+
     print("=" * 70)
     print(f"TEXT-DEPENDENT SPEAKER VERIFICATION EVALUATION")
     print(f"Dataset: Google Speech Commands ('{keyword}' keyword)")
@@ -76,7 +96,9 @@ def run_text_dependent_evaluation(keyword="yes",
     # Create trial pairs
     trials_info = GoogleSpeechCommandsHandler.create_text_dependent_trials(
         selected_speakers,
-        template_size=template_size
+        template_size=template_size,
+        impostor_speakers_per_test=impostor_speakers_per_test,
+        random_seed=random_seed,
     )
     
     templates = trials_info['templates']
